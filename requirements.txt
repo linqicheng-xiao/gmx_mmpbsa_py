@@ -1,0 +1,4 @@
+matplotlib==3.7.0
+pandas==1.5.3
+PyYAML==6.0.1
+seaborn==0.13.0

@@ -1,0 +1,11 @@
+trj: md_0_1_noPBC.xtc
+tpr: md_0_1.tpr
+ndx: index.ndx
+
+pro: Protein
+lig: UNK
+com: Protein_UNK
+
+# For Windows' users, USE "/", NOT "\"
+apbs: 'I:/Xiao_Lab/APBS/APBS-3.0.0/bin/apbs'
+gmx: 'I:/Xiao_Lab/gmx2018.8/bin/gmx'
