@@ -50,7 +50,7 @@ For the windows' users, a Linux/Unix-like environment is required. Please instal
 Open git bash in target directory, clone the repository to local.
 ```bash
 # clone the repository to local
-git clone https://github.com/JasonJiangs/gmx_mmpbsa_py.git
+git clone https://github.com/linqicheng-xiao/gmx_mmpbsa_py.git
 cd gmx_mmpbsa_py
 # install requirements
 pip install -r requirements.txt  # or pip3 install -r requirements.txt
