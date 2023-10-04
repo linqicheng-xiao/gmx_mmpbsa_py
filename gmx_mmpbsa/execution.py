@@ -137,8 +137,8 @@ class GMX_MMPBSA:
         value_list = [dH_dict["VDW"], dH_dict["COU (with DH)"], dH_dict["PB"], dH_dict["SA"],
                       TdS_dict["Binding (with DH)"], dH_dict["Binding (with DH)"]]
         name_list = ['ΔG vdw', 'ΔG ele', 'ΔG polar', 'ΔG nonpolar', '-TΔS', 'ΔG binding']
-        df = pd.DataFrame({'Energy Items': name_list, 'Energy kcal/mol': value_list})
-        sns.barplot(x='Energy Items', y='Energy kcal/mol', data=df)
+        df = pd.DataFrame({'Energy Items': name_list, 'Energy kJ/mol': value_list})
+        sns.barplot(x='Energy Items', y='Energy kJ/mol', data=df)
         # show value of each bar
         for x, y in enumerate(value_list):
             plt.text(x, y, '%s' % round(y, 3), ha='center', va='bottom')
@@ -194,11 +194,11 @@ class GMX_MMPBSA:
         for i in range(len(name_list)):
             name_list[i] = name_list[i][2:].strip('(with DH)')
 
-        df = pd.DataFrame({'Residue': name_list, 'Energy kcal/mol': value_list})
+        df = pd.DataFrame({'Residue': name_list, 'Energy kJ/mol': value_list})
 
         # small font size
         plt.rcParams.update({'font.size': 15})
-        sns.barplot(x='Residue', y='Energy kcal/mol', data=df)
+        sns.barplot(x='Residue', y='Energy kJ/mol', data=df)
         # show value of each bar
         for x, y in enumerate(value_list):
             plt.text(x, y, '%s' % round(y, 3), ha='center', va='bottom')
@@ -215,7 +215,7 @@ class GMX_MMPBSA:
         plt.close()
 
         # create a output.md file
-        with open('results/analysis/output_test.md', 'w') as f:
+        with open('results/analysis/analysis_output.md', 'w', encoding='utf-8') as f:
             f.write(f'=== Calculate the binding free energy between the ligand small molecule and the protein ===  \n')
             f.write(f'Δ*G*<sub>binding</sub>  \n')
             f.write(f'= Δ*H* - *T*Δ*S*  \n')
