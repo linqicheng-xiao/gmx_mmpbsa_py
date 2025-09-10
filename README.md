@@ -101,8 +101,8 @@ The organized analytical results are briefly introduced:
 
 
 ## Cite Us
-If you find the script is useful for your work and used for your publication(s).
-It will be appreciated if you cite our paper:
+If you find the script is useful for your work and use it for your publication(s).
+It will be appreciated if you cite our paper: https://doi.org/10.1021/jacs.5c08627
 
 
 As well as the original shell script by Jicun Li: [10.5281/zenodo.6408973](https://zenodo.org/record/6408973)
