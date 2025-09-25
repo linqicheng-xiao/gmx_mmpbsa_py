@@ -102,7 +102,16 @@ The organized analytical results are briefly introduced:
 
 ## Cite Us
 If you find the script is useful for your work and use it for your publication(s).
-It will be appreciated if you cite our paper: https://doi.org/10.1021/jacs.5c08627
-
-
+It will be appreciated if you cite our paper:
+```
+@article{doi:10.1021/jacs.5c08627,
+author = {Hu, Yu and Cheng, Linqi and Liu, Yijie and Liu, Rui and Jiang, Shiyu Jason and Yuan, Teng and Wang, Yixian and Ye, Haoxin and Xiao, Han},
+title = {Biosynthesis of Unnatural Cyclodipeptides through Genetic Code Expansion and Cyclodipeptide Synthase Evolution},
+journal = {Journal of the American Chemical Society},
+volume = {147},
+number = {38},
+pages = {34517-34526},
+year = {2025},
+doi = {10.1021/jacs.5c08627}
+```
 As well as the original shell script by Jicun Li: [10.5281/zenodo.6408973](https://zenodo.org/record/6408973)
