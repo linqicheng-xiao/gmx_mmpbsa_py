@@ -28,6 +28,9 @@ class GMX_MMPBSA:
         self.gmx = self.config['gmx']
         self.apbs = self.config['apbs']
 
+        # number of parallel APBS processes; default to all available CPU cores
+        self.nproc = self.config.get('nproc') or os.cpu_count() or 4
+
         # create ./results
         self.results_path = './results'
         if not os.path.exists(self.results_path):
@@ -85,6 +88,7 @@ class GMX_MMPBSA:
             '--com', self.com.strip('\''),
             '--apbs', self.apbs,
             '--gmx', self.gmx,
+            '--nproc', str(self.nproc),
             '--workdir', './results/execution'
         ]
 

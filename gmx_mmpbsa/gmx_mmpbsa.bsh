@@ -27,7 +27,8 @@ echo -e "\
    !!! 3. watch _pid.pdb to make sure PBC is correct
 --------------------------------------------------------------------------------
 >> Log:
-   TODO:       parallel APBS, focus
+   TODO:       focus
+   2026-06-05: parallel APBS over frames via xargs -P (--nproc), big speedup
    2022-11-18: fix issues with non-continuous ndx
    2022-10-16: fix issue with ndx file
    2022-07-14: fix issues with Chinease in PBSAset
@@ -96,6 +97,9 @@ for arg in "$@"; do
       ;;
     "--workdir")
       WORK_DIR=$arg
+      ;;
+    "--nproc")
+      nproc=$arg
       ;;
     *)
       ;;
@@ -610,12 +614,19 @@ fi; if [[ $step -le 3 ]]; then
 
 echo -e ">> 3. run MM-PBSA calculatons"
 dt=$(awk '/t=/{n++;sub(/.*t=/,"");sub(/step=.*/,"");t[n]=$0;if(n==2){print t[n]-t[1];exit}}' $pdb)
+
+# 并行 APBS 的进程数 number of parallel APBS processes
+# 优先使用 --nproc 传入的值, 否则自动探测 CPU 核数, 探测失败则用 4
+if [[ -z "$nproc" ]]; then
+	nproc=$(command -v nproc >/dev/null 2>&1 && nproc || echo 4)
+fi
+
 awk -v pid=_$pid          -v qrv=$qrv           -v dt="$dt"     \
 	-v apbs="$apbs"       -v useDH=$useDH       -v useTS=$useTS \
 	-v PBEset="$PBEset"   -v PBAset="$PBAset"                   \
 	-v meshType=$meshType -v gridType=$gridType -v gmem=$gmem   \
 	-v fadd=$fadd         -v cfac=$cfac         -v df=$df       \
-	-v withLig=$withLig   -v RS="\r?\n" '
+	-v withLig=$withLig   -v nproc="$nproc"      -v RS="\r?\n" '
 	BEGIN {
 		getline < qrv
 		getline Atyp < qrv
@@ -791,9 +802,61 @@ awk -v pid=_$pid          -v qrv=$qrv           -v dt="$dt"     \
 			}
 		}
 
+		# ============================================================
+		# APBS parallel - phase 1: generate ALL .apbs input files
+		# 所有 .pqr 文件此前已写好, 这里只生成 APBS 输入并登记到列表
+		# ============================================================
 		for(fr=1; fr<=Nfrm; fr++) {
-			t_start = systime(); fflush("")
+			Fout=Fname[fr]
+			if(withLig) print "read\n" \
+				"  mol pqr "Fout"_com.pqr\n" \
+				"  mol pqr "Fout"_pro.pqr\n" \
+				"  mol pqr "Fout"_lig.pqr\n" \
+				"end\n\n" > Fout".apbs"
+			else        print "read\n" \
+				"  mol pqr "Fout"_pro.pqr\n" \
+				"end\n\n" > Fout".apbs"
 
+			if(meshType==0) { # GMXPBSA
+				if(withLig) print \
+					dimAPBS(Fout"_com", 1, minX, maxX, minY, maxY, minZ, maxZ), \
+					dimAPBS(Fout"_pro", 2, minX, maxX, minY, maxY, minZ, maxZ), \
+					dimAPBS(Fout"_lig", 3, minX, maxX, minY, maxY, minZ, maxZ)  > Fout".apbs"
+				else        print \
+					dimAPBS(Fout"_pro", 1, minX, maxX, minY, maxY, minZ, maxZ)  > Fout".apbs"
+			} else if(meshType==1) { # g_mmpbsa
+				if(withLig) print \
+					dimAPBS(Fout"_com", 1, minXcom[fr], maxXcom[fr], minYcom[fr], maxYcom[fr], minZcom[fr], maxZcom[fr]), \
+					dimAPBS(Fout"_pro", 2, minXpro[fr], maxXpro[fr], minYpro[fr], maxYpro[fr], minZpro[fr], maxZpro[fr]), \
+					dimAPBS(Fout"_lig", 3, minXlig[fr], maxXlig[fr], minYlig[fr], maxYlig[fr], minZlig[fr], maxZlig[fr])  > Fout".apbs"
+				else       print \
+					dimAPBS(Fout"_pro", 1, minXpro[fr], maxXpro[fr], minYpro[fr], maxYpro[fr], minZpro[fr], maxZpro[fr])  > Fout".apbs"
+			}
+			close(Fout".apbs")
+			print Fout > pid"~apbs.lst"
+		}
+		close(pid"~apbs.lst")
+
+		# ============================================================
+		# APBS parallel - phase 2: run ALL APBS jobs concurrently
+		# 各帧之间互相独立, 用 xargs -P 并行调度, 每个任务写各自的 .out
+		# ============================================================
+		if(nproc+0<1) nproc=1
+		printf "   >> Running %d APBS job(s) in parallel with %d process(es) ...\n", Nfrm, nproc+0
+		fflush("")
+		t_start = systime()
+		cmd = "xargs -P " (nproc+0) " -I@ sh -c '" apbs " \"@.apbs\" > \"@.out\" 2>&1' < " pid "~apbs.lst"
+		ret = system(cmd)
+		if(ret!=0) printf "   !! WARNING: parallel APBS returned non-zero status (%d); check the .out files\n", ret
+		total_time = systime() - t_start
+		printf "   >> All APBS jobs finished in %0dh:%02dm:%02ds, parsing results ...\n", \
+			int(total_time/3600), int(total_time%3600/60), total_time%60
+		fflush("")
+
+		# ============================================================
+		# APBS parallel - phase 3: parse outputs & compute MM/PB/SA
+		# ============================================================
+		for(fr=1; fr<=Nfrm; fr++) {
 			Fout=Fname[fr]
 			printf "   >> Frame %3d/%d: %-"maxstr"s", fr, Nfrm, Fout
 
@@ -838,36 +901,7 @@ awk -v pid=_$pid          -v qrv=$qrv           -v dt="$dt"     \
 				}
 			}
 
-			# PBSA
-			if(withLig) print "read\n" \
-				"  mol pqr "Fout"_com.pqr\n" \
-				"  mol pqr "Fout"_pro.pqr\n" \
-				"  mol pqr "Fout"_lig.pqr\n" \
-				"end\n\n" > Fout".apbs"
-			else        print "read\n" \
-				"  mol pqr "Fout"_pro.pqr\n" \
-				"end\n\n" > Fout".apbs"
-
-			if(meshType==0) { # GMXPBSA
-				if(withLig) print \
-					dimAPBS(Fout"_com", 1, minX, maxX, minY, maxY, minZ, maxZ), \
-					dimAPBS(Fout"_pro", 2, minX, maxX, minY, maxY, minZ, maxZ), \
-					dimAPBS(Fout"_lig", 3, minX, maxX, minY, maxY, minZ, maxZ)  > Fout".apbs"
-				else        print \
-					dimAPBS(Fout"_pro", 1, minX, maxX, minY, maxY, minZ, maxZ)  > Fout".apbs"
-			} else if(meshType==1) { # g_mmpbsa
-				if(withLig) print \
-					dimAPBS(Fout"_com", 1, minXcom[fr], maxXcom[fr], minYcom[fr], maxYcom[fr], minZcom[fr], maxZcom[fr]), \
-					dimAPBS(Fout"_pro", 2, minXpro[fr], maxXpro[fr], minYpro[fr], maxYpro[fr], minZpro[fr], maxZpro[fr]), \
-					dimAPBS(Fout"_lig", 3, minXlig[fr], maxXlig[fr], minYlig[fr], maxYlig[fr], minZlig[fr], maxZlig[fr])  > Fout".apbs"
-				else       print \
-					dimAPBS(Fout"_pro", 1, minXpro[fr], maxXpro[fr], minYpro[fr], maxYpro[fr], minZpro[fr], maxZpro[fr])  > Fout".apbs"
-			}
-			close(Fout".apbs")
-
-			cmd=apbs" "Fout".apbs > "Fout".out 2>&1";
-			cmd | getline err; close(cmd)
-
+			# PBSA: parse the APBS output already produced in parallel above
 			txt=Fout".out";
 			while(getline < txt ) {
 				if(index($0, "CALCULATION #")) {
@@ -925,9 +959,7 @@ awk -v pid=_$pid          -v qrv=$qrv           -v dt="$dt"     \
 				Fout, dh[fr,0], dh[fr,1], mm[fr,0], mm[fr,1], pb[fr], sa[fr], \
 				Ecou, EcouDH, Evdw, PBcom, PBpro, PBlig, SAcom, SApro, SAlig >> pid"~MMPBSA.dat"
 
-			total_time = (Nfrm-fr)*(systime() - t_start)
-			printf "  MM-PBSA(with DH) = %9.3f(%9.3f) kJ/mol    Estimated Time Remaining: ~ %0dh:%02dm:%02ds\n", \
-				dh[fr,0], dh[fr,1], int(total_time/3600), int(total_time%3600/60), total_time%60
+			printf "  MM-PBSA(with DH) = %9.3f(%9.3f) kJ/mol\n", dh[fr,0], dh[fr,1]
 
 			fmt ="%s%9.3f %s"
 			fmt2="%s%9.3f(%9.3f) %s"
@@ -1227,5 +1259,5 @@ fi
 # 4. 删除临时文件
 # 4. remove intermediate files
 ################################################################################
-rm -f io.mc \#*
+rm -f io.mc \#* _$pid~apbs.lst
 #rm -f _$pid*
