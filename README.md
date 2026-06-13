@@ -76,6 +76,9 @@ com: Protein_UNK
 # For Windows' users, USE "/", NOT "\"
 apbs: 'I:/Xiao_Lab/APBS/APBS-3.0.0/bin/apbs'  
 gmx: 'I:/Xiao_Lab/gmx2018.8/bin/gmx'
+
+# Number of APBS jobs to run in parallel (one per trajectory frame).
+nproc: 8
 ```
 Change the `gmx_mmpbsa_py/parameter.yaml` file according to your needs. Be aware that this
 is the minimal requirement for the script to execute. For more parameter adjustment, please refer to the
