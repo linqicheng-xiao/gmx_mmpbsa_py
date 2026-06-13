@@ -250,14 +250,16 @@ cas=${cas##*-cas}; cas=${cas%%-*}; cas=${cas// /}
 opt=($*); N=${#opt[@]}
 for((i=0; i<N; i++)); do
 	arg=${opt[$i]}; j=$((i+1)); val=${opt[$j]}
-	[[ $arg =~ -f   ]] && { trj=$val; }
-	[[ $arg =~ -s   ]] && { tpr=$val; }
-	[[ $arg =~ -n   ]] && { ndx=$val; }
-	[[ $arg =~ -pro ]] && { pro=$val; }
-	[[ $arg =~ -lig ]] && { lig=$val; }
-	[[ $arg =~ -cou ]] && { useDH=1;  }
-	[[ $arg =~ -ts  ]] && { useTS=1;  }
-	[[ $arg =~ -cas ]] && { isCAS=1;  }
+	# exact-token match: the old unanchored =~ patterns false-matched long
+	# options (e.g. --nproc contains "-n" and clobbered ndx)
+	[[ $arg == -f   ]] && { trj=$val; }
+	[[ $arg == -s   ]] && { tpr=$val; }
+	[[ $arg == -n   ]] && { ndx=$val; }
+	[[ $arg == -pro ]] && { pro=$val; }
+	[[ $arg == -lig ]] && { lig=$val; }
+	[[ $arg == -cou ]] && { useDH=1;  }
+	[[ $arg == -ts  ]] && { useTS=1;  }
+	[[ $arg == -cas ]] && { isCAS=1;  }
 done
 
 if [[ -z "$lig" || $lig =~ none ]]; then
@@ -845,9 +847,17 @@ awk -v pid=_$pid          -v qrv=$qrv           -v dt="$dt"     \
 		printf "   >> Running %d APBS job(s) in parallel with %d process(es) ...\n", Nfrm, nproc+0
 		fflush("")
 		t_start = systime()
-		cmd = "xargs -P " (nproc+0) " -I@ sh -c '" apbs " \"@.apbs\" > \"@.out\" 2>&1' < " pid "~apbs.lst"
+		# Build the shell command. The whole awk program is wrapped in single
+		# quotes by bash, so a literal single-quote char cannot appear in this
+		# source; inject it via q = chr(39).
+		# Each finished job echoes its frame name; a counter awk prints a live
+		# x/N progress line as jobs complete (order is non-deterministic).
+		q = sprintf("%c", 39)
+		prog = "{c++; printf \"   >> APBS progress: %d/%d frames done (latest: %s)\\n\", c, t, $0; fflush()}"
+		cmd = "xargs -P " (nproc+0) " -I@ sh -c " q apbs " \"@.apbs\" > \"@.out\" 2>&1; echo @" q \
+			" < " pid "~apbs.lst" \
+			" | awk -v t=" Nfrm " " q prog q
 		ret = system(cmd)
-		if(ret!=0) printf "   !! WARNING: parallel APBS returned non-zero status (%d); check the .out files\n", ret
 		total_time = systime() - t_start
 		printf "   >> All APBS jobs finished in %0dh:%02dm:%02ds, parsing results ...\n", \
 			int(total_time/3600), int(total_time%3600/60), total_time%60

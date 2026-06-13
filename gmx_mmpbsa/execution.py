@@ -93,8 +93,12 @@ class GMX_MMPBSA:
         ]
 
         # execute command
+        # NOTE: shell=False (command is a list). On POSIX, shell=True with a
+        # list only runs the first element ('sh'), dropping all arguments, so
+        # the script would never receive --trj/--tpr/... Keeping shell=False
+        # also lets the script's stdout stream to the terminal in real time.
         try:
-            subprocess.run(command, check=True, shell=True)
+            subprocess.run(command, check=True)
             print('Command executed successfully...')
         except subprocess.CalledProcessError as e:
             self._clear_temp_files_in_dir('./results/execution', self.file_list)
